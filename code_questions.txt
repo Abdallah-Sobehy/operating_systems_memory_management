@@ -1,0 +1,3 @@
+1 -  (In pmap.c/page_init) Where is the kernel
+	//     in physical memory? KERNBASE upwards  Which pages are already in use for
+	//     page tables and other data structures? page directory , GDT, LDT 

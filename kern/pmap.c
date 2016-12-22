@@ -151,7 +151,7 @@ mem_init(void)
 	// create initial page directory.
 	kern_pgdir = (pde_t *) boot_alloc(PGSIZE);
 	memset(kern_pgdir, 0, PGSIZE);
-panic("mem_init: This function is not finished\n");
+//panic("mem_init: This function is not finished\n");
 	//////////////////////////////////////////////////////////////////////
 	// Recursively insert PD in itself as a page table, to form
 	// a virtual page table at virtual address UVPT.
@@ -168,6 +168,8 @@ panic("mem_init: This function is not finished\n");
 	// array.  'npages' is the number of physical pages in memory.  Use memset
 	// to initialize all fields of each struct PageInfo to 0.
 	// Your code goes here:
+	pages = (struct PageInfo *) boot_alloc(npages*sizeof(struct PageInfo));
+
 
 
 	//////////////////////////////////////////////////////////////////////
@@ -177,11 +179,11 @@ panic("mem_init: This function is not finished\n");
 	// particular, we can now map memory using boot_map_region
 	// or page_insert
 	page_init();
-
+		cprintf("npages: %x \n", npages);
 	check_page_free_list(1);
 	check_page_alloc();
 	check_page();
-
+panic("mem_init: This function is not finished\n");
 	//////////////////////////////////////////////////////////////////////
 	// Now we set up virtual memory
 
@@ -270,9 +272,38 @@ page_init(void)
 	//
 	// Change the code to reflect this.
 	// NB: DO NOT actually touch the physical memory corresponding to
-	// free pages!
+	// free pages! [[what does this mean ?]]
 	size_t i;
-	for (i = 0; i < npages; i++) {
+	// [[ Budy page will not be poiting to the first free space if the linked list gets updated!]]
+	// 1)
+	pages[0].pp_ref = 1; // in use
+	pages[0].pp_link = NULL;
+
+	// 2)
+	//cprintf("num of pages in base memory : %d\n", npages_basemem);
+	for (i = 1; i < npages_basemem; i++) {
+		pages[i].pp_ref = 0;
+		pages[i].pp_link = page_free_list;
+		page_free_list = &pages[i];
+	}
+	// 3)
+	// number of pages in I/O hole = (IOPHYSMEM, EXTPHYSMEM)/PGSIZE
+	// [[ why not (MMIOLIM - MMIOBASE)/PGSIZE ]]
+	for (int tmp = i ; i < tmp + (EXTPHYSMEM - IOPHYSMEM)/PGSIZE ; i++)
+	{
+		pages[i].pp_ref = 1;// busy [[ is there a way to gurantee it is always busy?]]
+		pages[i].pp_link = NULL; //[[ Do we need to point at next free in busy pages ? ]]
+	}
+	//cprintf("%d , %d , %d\n", IOPHYSMEM, EXTPHYSMEM, (EXTPHYSMEM - IOPHYSMEM)/PGSIZE);
+	// 4) [[ kernel reserved space is KSTKSIZE + KSTKGAP ??]]
+	for (int tmp = i ; i < tmp + (PADDR(boot_alloc(0)) - EXTPHYSMEM)/PGSIZE ; i++)
+	{
+		pages[i].pp_ref = 1;// busy [[ is there a way to gurantee it is always busy?]]
+		pages[i].pp_link = NULL; //[[ Do we need to point at next free in busy pages ? ]]
+	}
+	// The rest of the memory is free: npages - the number of pages allocated so far
+	for (int tmp = i ; i < npages - tmp ; i++)
+	{
 		pages[i].pp_ref = 0;
 		pages[i].pp_link = page_free_list;
 		page_free_list = &pages[i];
@@ -291,11 +322,19 @@ page_init(void)
 // Returns NULL if out of free memory.
 //
 // Hint: use page2kva and memset
+// page2kva from pageInfo to virtual address
 struct PageInfo *
 page_alloc(int alloc_flags)
 {
 	// Fill this function in
-	return 0;
+		if(!page_free_list) // null if out of free memory
+			return NULL;
+		struct PageInfo * tmp = page_free_list; // tmp to store the pageInfo that will be filled
+		page_free_list = (*tmp).pp_link; // The next free page is change to the next one
+		(*tmp).pp_link = NULL; // indication that it is filled
+		if (alloc_flags & ALLOC_ZERO) // condition from the function comments
+			 memset(page2kva(tmp),'\0',PGSIZE); // fill the page with '\0'
+		return tmp;
 }
 
 //
@@ -308,6 +347,11 @@ page_free(struct PageInfo *pp)
 	// Fill this function in
 	// Hint: You may want to panic if pp->pp_ref is nonzero or
 	// pp->pp_link is not NULL.
+	if(pp->pp_ref != 0 || pp->pp_link!= NULL)
+		panic("page_free: reference count is non zero or next free page is not null");
+	struct PageInfo * tmp = page_free_list;
+	page_free_list = pp;
+	(*pp).pp_link = tmp;
 }
 
 //
@@ -343,10 +387,21 @@ page_decref(struct PageInfo* pp)
 // Hint 3: look at inc/mmu.h for useful macros that mainipulate page
 // table and page directory entries.
 //
+
 pte_t *
 pgdir_walk(pde_t *pgdir, const void *va, int create)
 {
 	// Fill this function in
+	// if (/* not loaded in physical memory */) {
+	// 	if (!create) {
+	// 		return NULL;
+	// 	}
+	// 	struct PageInfo * tmp = page_alloc(/* alloc_flags */);
+	// 	if (!tmp) {
+	// 		return NULL;
+	// 	}
+	// 	(*tmp).pp_ref++;
+	// }
 	return NULL;
 }
 

@@ -2,8 +2,22 @@
 ***
 6828 decimal is 15254 octal!
 Physical memory: 131072K available, base = 640K, extended = 130432K
-kernel panic at kern/pmap.c:154: mem_init: This function is not finished
-
-Welcome to the JOS kernel monitor!
-Type 'help' for a list of commands.
-qemu: terminating on signal 15 from pid 5485
+EAX=0c6f2000 EBX=97979797 ECX=00000000 EDX=00000031
+ESI=00000001 EDI=00000000 EBP=f0111f98 ESP=f0111f40
+EIP=f0100aba EFL=00000006 [-----P-] CPL=0 II=0 A20=1 SMM=0 HLT=0
+ES =0010 00000000 ffffffff 00cf9300 DPL=0 DS   [-WA]
+CS =0008 00000000 ffffffff 00cf9a00 DPL=0 CS32 [-R-]
+SS =0010 00000000 ffffffff 00cf9300 DPL=0 DS   [-WA]
+DS =0010 00000000 ffffffff 00cf9300 DPL=0 DS   [-WA]
+FS =0010 00000000 ffffffff 00cf9300 DPL=0 DS   [-WA]
+GS =0010 00000000 ffffffff 00cf9300 DPL=0 DS   [-WA]
+LDT=0000 00000000 0000ffff 00008200 DPL=0 LDT
+TR =0000 00000000 0000ffff 00008b00 DPL=0 TSS32-busy
+GDT=     00007c4c 00000017
+IDT=     00000000 000003ff
+CR0=80010011 CR2=00000040 CR3=00112000 CR4=00000000
+DR0=00000000 DR1=00000000 DR2=00000000 DR3=00000000 
+DR6=ffff0ff0 DR7=00000400
+EFER=0000000000000000
+Triple fault.  Halting for inspection via QEMU monitor.
+qemu: terminating on signal 15 from pid 15837
