@@ -393,14 +393,14 @@ pgdir_walk(pde_t *pgdir, const void *va, int create)
 {
 	// Fill this function in
 	// if (/* not loaded in physical memory */) {
-	// 	if (!create) {
-	// 		return NULL;
-	// 	}
-	// 	struct PageInfo * tmp = page_alloc(/* alloc_flags */);
-	// 	if (!tmp) {
-	// 		return NULL;
-	// 	}
-	// 	(*tmp).pp_ref++;
+		// if (!create) {
+		// 	return NULL;
+		// }
+		// struct PageInfo * tmp = page_alloc(ALLOC_ZERO);
+		// if (!tmp) {
+		// 	return NULL;
+		// }
+		// tmp->pp_ref++;
 	// }
 	return NULL;
 }
@@ -420,6 +420,13 @@ static void
 boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm)
 {
 	// Fill this function in
+	for (int i = 0; i < size; i += PGSIZE, va += PGSIZE) {
+		pte_t * temp = pgdir_walk(pgdir, (void *)va, 1); //create flag?!!!!!
+		//TODO ha3mel 7aga bel temp
+		//TODO ha3mel 7aga bel pa & perm
+		*temp = pa | perm | PTE_P;
+		pa += PGSIZE;
+	}
 }
 
 //
