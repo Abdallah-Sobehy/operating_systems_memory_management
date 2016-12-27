@@ -9,6 +9,14 @@
 #include <kern/pmap.h>
 #include <kern/kclock.h>
 
+// Helping function to to extract bits from a 32-bit word
+// The range of extracted bit is counted from right to left starting with index 0 to 32 INCLUSIVE
+uint32_t extractInt(uint32_t orig32BitWord, unsigned from, unsigned to)
+{
+  unsigned mask = ( (1<<(to-from+1))-1) << from;
+  return (orig32BitWord & mask) >> from;
+}
+
 // These variables are set by i386_detect_memory()
 size_t npages;			// Amount of physical memory (in pages)
 static size_t npages_basemem;	// Amount of base memory (in pages)
@@ -391,18 +399,39 @@ page_decref(struct PageInfo* pp)
 pte_t *
 pgdir_walk(pde_t *pgdir, const void *va, int create)
 {
-	// Fill this function in
-	// if (/* not loaded in physical memory */) {
-		// if (!create) {
-		// 	return NULL;
-		// }
-		// struct PageInfo * tmp = page_alloc(ALLOC_ZERO);
-		// if (!tmp) {
-		// 	return NULL;
-		// }
-		// tmp->pp_ref++;
-	// }
-	return NULL;
+  // Extracting the left most 10 bits in the virtual address = page dir. offset
+  uint32_t pg_dir_offset =  PDX(va);
+  // Extracting the mid 10 bits in the virtual address = page table offset
+  uint32_t pg_table_offset = PTX(va);
+  // if page table not loaded in physical memory by checking present bit
+  if (!(pgdir[pg_dir_offset] & PTE_P))
+  {
+    // return null if create is not set
+    if(!create)
+      return NULL;
+    else // allocate a page
+    {
+      // store page info in struct PageInfo
+      struct PageInfo * pg_info = page_alloc(0);
+      // if allocation fails return NULL
+      if(pg_info == NULL)
+        return NULL;
+      else // increment reference count
+      {
+        pg_info->pp_ref +=1;
+        // map the va to the physical address setting the present bit
+        pgdir[pg_dir_offset] = page2pa(pg_info) | PTE_P;
+      }
+    }
+  }
+  // page table entry in page directory
+  pte_t * pte_in_pgdir = (pte_t *)pgdir[pg_dir_offset];
+  // Physical address in page table or page directory entry (left most 20 bits)
+  pte_t pg_table_addr = PTE_ADDR(pte_in_pgdir);
+  // get virtual address of the page table entry by adding the
+  pte_t * pg_table_entry = KADDR(pg_table_addr)+pg_table_offset;
+  cprintf("llLL %d \n", pg_table_entry);
+  return pg_table_entry;
 }
 
 //
@@ -420,13 +449,13 @@ static void
 boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm)
 {
 	// Fill this function in
-	for (int i = 0; i < size; i += PGSIZE, va += PGSIZE) {
-		pte_t * temp = pgdir_walk(pgdir, (void *)va, 1); //create flag?!!!!!
-		//TODO ha3mel 7aga bel temp
-		//TODO ha3mel 7aga bel pa & perm
-		*temp = pa | perm | PTE_P;
-		pa += PGSIZE;
-	}
+  for (int i = 0; i < size; i += PGSIZE, va += PGSIZE) {
+  pte_t * temp = pgdir_walk(pgdir, (void *)va, 1); //create flag?!!!!!
+  //TODO ha3mel 7aga bel temp
+  //TODO ha3mel 7aga bel pa & perm
+  *temp = pa | perm | PTE_P;
+  pa += PGSIZE;
+  }
 }
 
 //
@@ -454,12 +483,15 @@ boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm
 // Hint: The TA solution is implemented using pgdir_walk, page_remove,
 // and page2pa.
 //
-int
-page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
+int page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
 {
 	// Fill this function in
+	int permissions = perm | PTE_P;
+	//cprintf("Permissions: %d \n",permissions);
+  pgdir_walk(kern_pgdir,va,1);
 	return 0;
 }
+
 
 //
 // Return the page mapped at virtual address 'va'.
