@@ -191,7 +191,7 @@ mem_init(void)
 	check_page_free_list(1);
 	check_page_alloc();
 	check_page();
-panic("mem_init: This function is not finished\n");
+//panic("mem_init: This function is not finished\n");
 	//////////////////////////////////////////////////////////////////////
 	// Now we set up virtual memory
 
@@ -412,25 +412,26 @@ pgdir_walk(pde_t *pgdir, const void *va, int create)
     else // allocate a page
     {
       // store page info in struct PageInfo
-      struct PageInfo * pg_info = page_alloc(0);
+      struct PageInfo * pg_info = page_alloc(ALLOC_ZERO);
       // if allocation fails return NULL
-      if(pg_info == NULL)
+      if(!pg_info)
         return NULL;
       else // increment reference count
       {
         pg_info->pp_ref +=1;
         // map the va to the physical address setting the present bit
-        pgdir[pg_dir_offset] = page2pa(pg_info) | PTE_P;
+        // Started with present bit only then it gave assertion failed because PTE_U is missing so we added the rest of the flags
+        // [[Though we do not understand the meaning of those flags PTE_WT(write through) | PTE_AVAIL(system available)]]
+        pgdir[pg_dir_offset] = page2pa(pg_info) | PTE_P | PTE_U| PTE_W | PTE_PWT | PTE_AVAIL;
       }
     }
   }
   // page table entry in page directory
-  pte_t * pte_in_pgdir = (pte_t *)pgdir[pg_dir_offset];
+  pte_t pte_in_pgdir = *(pgdir + pg_dir_offset);
   // Physical address in page table or page directory entry (left most 20 bits)
   pte_t pg_table_addr = PTE_ADDR(pte_in_pgdir);
   // get virtual address of the page table entry by adding the
-  pte_t * pg_table_entry = KADDR(pg_table_addr)+pg_table_offset;
-  cprintf("llLL %d \n", pg_table_entry);
+  pte_t * pg_table_entry = (pde_t *)KADDR(pg_table_addr)+pg_table_offset;
   return pg_table_entry;
 }
 
@@ -489,7 +490,7 @@ int page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
 	int permissions = perm | PTE_P;
 	//cprintf("Permissions: %d \n",permissions);
   // get page table entry
-  pte_t * pg_table_entry = pgdir_walk(kern_pgdir,va,1);
+  pte_t * pg_table_entry = pgdir_walk(pgdir,va,1);
   if(pg_table_entry == NULL) // page table could not be allocated cuz memory full
     return -E_NO_MEM;
 
@@ -497,7 +498,7 @@ int page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
       //[[The TLB must be invalidated (??!!) if a page was formerly present at 'va'??]]
       // if the virtual page is mapping to another page you need to remove this mapping first and free that physical page
       // [[Why would a virtual page care to map to another physical page ??]]
-      //
+      // [[handling the same pp inserted at the same va ?? should the ref_count be unchanged? ]]
       if (*pg_table_entry & PTE_P)
       { // if the virtual page was assigned to another phsical the mapping should be removed
         // This will free physical memory if it was the only one pointing at it
@@ -524,16 +525,17 @@ struct PageInfo *
 page_lookup(pde_t *pgdir, void *va, pte_t **pte_store)
 {
 	pte_t * pg_table_entry = pgdir_walk(pgdir,va,0); // 0 cuz no need to create it is just lookup
-  if(pg_table_entry == NULL || pg_table_entry)
+  if(pg_table_entry == NULL )
   {
     // va not mapped
     return NULL;
   }
   if(pte_store != 0 )
   {
-
+    *pte_store = pg_table_entry;
   }
-	return NULL;
+	struct PageInfo * p = pa2page(PTE_ADDR(*pg_table_entry));
+  return p;
 }
 
 //
@@ -554,6 +556,14 @@ page_lookup(pde_t *pgdir, void *va, pte_t **pte_store)
 void
 page_remove(pde_t *pgdir, void *va)
 {
+  pte_t * pte_of_va;
+  struct PageInfo * pg_info = page_lookup(pgdir, va,&pte_of_va);
+  if(pg_info == NULL)// Meaning no physical page attached to va
+    return;
+  // if the physical page exists:
+  page_decref(pg_info);
+  *pte_of_va = 0;
+  tlb_invalidate(pgdir,va);
 
 }
 
