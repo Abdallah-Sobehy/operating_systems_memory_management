@@ -488,7 +488,23 @@ int page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
 	// Fill this function in
 	int permissions = perm | PTE_P;
 	//cprintf("Permissions: %d \n",permissions);
-  pgdir_walk(kern_pgdir,va,1);
+  // get page table entry
+  pte_t * pg_table_entry = pgdir_walk(kern_pgdir,va,1);
+  if(pg_table_entry == NULL) // page table could not be allocated cuz memory full
+    return -E_NO_MEM;
+
+      pp->pp_ref +=1;
+      //[[The TLB must be invalidated (??!!) if a page was formerly present at 'va'??]]
+      // if the virtual page is mapping to another page you need to remove this mapping first and free that physical page
+      // [[Why would a virtual page care to map to another physical page ??]]
+      //
+      if (*pg_table_entry & PTE_P)
+      { // if the virtual page was assigned to another phsical the mapping should be removed
+        // This will free physical memory if it was the only one pointing at it
+        //remove before assigning the physical page
+        page_remove(pgdir, va);
+      }
+      *pg_table_entry = page2pa(pp) | permissions;
 	return 0;
 }
 
@@ -507,7 +523,16 @@ int page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
 struct PageInfo *
 page_lookup(pde_t *pgdir, void *va, pte_t **pte_store)
 {
-	// Fill this function in
+	pte_t * pg_table_entry = pgdir_walk(pgdir,va,0); // 0 cuz no need to create it is just lookup
+  if(pg_table_entry == NULL || pg_table_entry)
+  {
+    // va not mapped
+    return NULL;
+  }
+  if(pte_store != 0 )
+  {
+
+  }
 	return NULL;
 }
 
@@ -529,7 +554,7 @@ page_lookup(pde_t *pgdir, void *va, pte_t **pte_store)
 void
 page_remove(pde_t *pgdir, void *va)
 {
-	// Fill this function in
+
 }
 
 //
